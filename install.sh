@@ -1,0 +1,302 @@
+#!/bin/bash
+
+TMP_FOLDER=$(mktemp -d)
+COINTITLE=Arcticcoin
+COINDAEMON=arcticcoind
+COINCLI=arcticcoin-cli
+CONFIG_FILE="arcticcoin.conf"
+BIN_TARGET="/usr/local/bin"
+BINARY_FILE="$BIN_TARGET/$COINDAEMON"
+COIN_REPO="https://github.com/ArcticCore/arcticcoin.git"
+COIN_TGZ='https://github.com/ArcticCore/arcticcoin/releases/download/v0.12.1.2/arcticcore-0.12.2-linux64.tar.gz'
+DEFAULTCOINPORT=7209
+DEFAULTCOINFOLDER="$COINHOME/.arcticcore"
+NODEIP=$(curl -s4 api.ipify.org)
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+
+function compile_error() {
+if [ "$?" -gt "0" ];
+ then
+  echo -e "${RED}Failed to compile $@. Please investigate.${NC}"
+  exit 1
+fi
+}
+
+
+function checks() {
+if [[ $(lsb_release -d) != *16.04* ]]; then
+  echo -e "${RED}You are not running Ubuntu 16.04. Installation is cancelled.${NC}"
+  exit 1
+fi
+
+if [[ $EUID -ne 0 ]]; then
+   echo -e "${RED}$0 must be run as root.${NC}"
+   exit 1
+fi
+
+if [ -n "$(pidof $COINDAEMON)" ]; then
+  echo -e "${GREEN}\c"
+  read -e -p "$COINDAEMON is already running. Do you want to add another MN? [Y/N]" NEW_CROP
+  echo -e "{NC}"
+  clear
+else
+  NEW_CROP="new"
+fi
+}
+
+function prepare_system() {
+
+echo -e "Prepare the system to install $COINTITLE master node."
+apt-get update >/dev/null 2>&1
+DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y -qq upgrade >/dev/null 2>&1
+apt install -y software-properties-common >/dev/null 2>&1
+echo -e "${GREEN}Adding bitcoin PPA repository"
+apt-add-repository -y ppa:bitcoin/bitcoin >/dev/null 2>&1
+echo -e "Installing required packages, it may take some time to finish.${NC}"
+apt-get update >/dev/null 2>&1
+apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" make software-properties-common \
+build-essential libtool autoconf libssl-dev libboost-dev libboost-chrono-dev libboost-filesystem-dev libboost-program-options-dev \
+libboost-system-dev libboost-test-dev libboost-thread-dev sudo automake git wget pwgen curl libdb4.8-dev bsdmainutils \
+libdb4.8++-dev libminiupnpc-dev libgmp3-dev ufw pwgen
+clear
+if [ "$?" -gt "0" ];
+  then
+    echo -e "${RED}Not all required packages were installed properly. Try to install them manually by running the following commands:${NC}\n"
+    echo "apt-get update"
+    echo "apt -y install software-properties-common"
+    echo "apt-add-repository -y ppa:bitcoin/bitcoin"
+    echo "apt-get update"
+    echo "apt install -y make build-essential libtool software-properties-common autoconf libssl-dev libboost-dev libboost-chrono-dev libboost-filesystem-dev \
+libboost-program-options-dev libboost-system-dev libboost-test-dev libboost-thread-dev sudo automake git pwgen curl libdb4.8-dev \
+bsdmainutils libdb4.8++-dev libminiupnpc-dev libgmp3-dev ufw"
+ exit 1
+fi
+
+clear
+echo -e "Checking if swap space is needed."
+PHYMEM=$(free -g|awk '/^Mem:/{print $2}')
+SWAP=$(swapon -s)
+if [[ "$PHYMEM" -lt "2" && -z "$SWAP" ]];
+  then
+    echo -e "${GREEN}Server is running with less than 2G of RAM, creating 2G swap file.${NC}"
+    dd if=/dev/zero of=/swapfile bs=1024 count=2M
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon -a /swapfile
+else
+  echo -e "${GREEN}The server running with at least 2G of RAM, or SWAP exists.${NC}"
+fi
+clear
+}
+
+function deploy_binaries() {
+  cd $TMP
+  wget -q $COIN_TGZ >/dev/null 2>&1
+  gunzip $COINDAEMON.gz >/dev/null 2>&1
+  chmod +x $COINDAEMON >/dev/null 2>&1
+  cp $COINDAEMON $BIN_TARGET >/dev/null 2>&1
+  chmod +x $COINCLI >/dev/null 2>&1
+  cp $COINCLI $BIN_TARGET >/dev/null 2>&1
+}
+
+function ask_permission() {
+ echo -e "${RED}I trust zoldur and want to use binaries compiled on his server.${NC}."
+ echo -e "Please type ${RED}YES${NC} if you want to use precompiled binaries, or type anything else to compile them on your server"
+ read -e ALREADYCOMPILED
+}
+
+function compile_arcticcoin() {
+  echo -e "Clone git repo and compile it. This may take some time. Press a key to continue."
+  read -n 1 -s -r -p ""
+
+  git clone $COIN_REPO $TMP_FOLDER
+  cd $TMP_FOLDER
+    ./autogen.sh
+    ./configure
+    make -j$(nproc)
+  compile_error arcticcoin
+  cp -a $COINDAEMON $BIN_TARGET
+  cp -a $COINCLI $BIN_TARGET
+  clear
+}
+
+function enable_firewall() {
+  echo -e "Installing and setting up firewall to allow incomning access on port ${GREEN}$COINPORT${NC}"
+  ufw allow $COINPORT/tcp comment "$COINTITLE MN port" >/dev/null
+  ufw allow $[COINPORT+1]/tcp comment "$COINTITLE RPC port" >/dev/null
+  ufw allow ssh >/dev/null 2>&1
+  ufw limit ssh/tcp >/dev/null 2>&1
+  ufw default allow outgoing >/dev/null 2>&1
+  echo "y" | ufw enable >/dev/null 2>&1
+}
+
+function systemd_arcticcoin() {
+  cat << EOF > /etc/systemd/system/$COINUSER.service
+[Unit]
+Description=$COINTITLE service
+After=network.target
+
+[Service]
+
+Type=forking
+User=$COINUSER
+Group=$COINUSER
+WorkingDirectory=$COINHOME
+ExecStart=$BIN_TARGET/$COINDAEMON -daemon
+ExecStop=$BIN_TARGET/$COINCLI stop
+
+Restart=always
+PrivateTmp=true
+TimeoutStopSec=60s
+TimeoutStartSec=10s
+StartLimitInterval=120s
+StartLimitBurst=5
+  
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  systemctl daemon-reload
+  sleep 3
+  systemctl start $COINUSER.service
+  systemctl enable $COINUSER.service >/dev/null 2>&1
+
+  if [[ -z $(pidof $COINDAEMON) ]]; then
+    echo -e "${RED}Arcticcoind is not running${NC}, please investigate. You should start by running the following commands as root:"
+    echo "systemctl start $COINUSER.service"
+    echo "systemctl status $COINUSER.service"
+    echo "less /var/log/syslog"
+    exit 1
+  fi
+}
+
+function ask_port() {
+read -p "CROPCOIN Port: " -i $DEFAULTCOINPORT -e COINPORT
+: ${COINPORT:=$DEFAULTCOINPORT}
+}
+
+function ask_user() {
+  DEFAULTCOINUSER="arcticcoin"
+  read -p "$COINTITLE user: " -i $DEFAULTCOINUSER -e COINUSER
+  : ${COINUSER:=$DEFAULTCOINUSER}
+
+  if [ -z "$(getent passwd $COINUSER)" ]; then
+    useradd -m $COINUSER
+    USERPASS=$(tr -cd '[:alnum:]' < /dev/urandom | fold -w12 | head -n1)
+    echo "$COINUSER:$USERPASS" | chpasswd
+
+    COINHOME=$(sudo -H -u $COINUSER bash -c 'echo $HOME')
+    read -p "Configuration folder: " -i $DEFAULTCOINFOLDER -e COINFOLDER
+    : ${COINFOLDER:=$DEFAULTCOINFOLDER}
+    mkdir -p $COINFOLDER
+    chown -R $COINUSER: $COINFOLDER >/dev/null
+  else
+    clear
+    echo -e "${RED}User exits. Please enter another username: ${NC}"
+    ask_user
+  fi
+}
+
+function check_port() {
+  declare -a PORTS
+  PORTS=($(netstat -tnlp | awk '/LISTEN/ {print $4}' | awk -F":" '{print $NF}' | sort | uniq | tr '\r\n'  ' '))
+  ask_port
+
+  while [[ ${PORTS[@]} =~ $COINPORT ]] || [[ ${PORTS[@]} =~ $[COINPORT+1] ]]; do
+    clear
+    echo -e "${RED}Port in use, please choose another port:${NF}"
+    ask_port
+  done
+}
+
+function create_config() {
+  RPCUSER=$(tr -cd '[:alnum:]' < /dev/urandom | fold -w10 | head -n1)
+  RPCPASSWORD=$(tr -cd '[:alnum:]' < /dev/urandom | fold -w22 | head -n1)
+  cat << EOF > $COINFOLDER/$CONFIG_FILE
+rpcuser=$RPCUSER
+rpcpassword=$RPCPASSWORD
+rpcallowip=127.0.0.1
+rpcport=$[COINPORT+1]
+listen=1
+server=1
+daemon=1
+port=$COINPORT
+EOF
+}
+
+function create_key() {
+  echo -e "Enter your ${RED}Masternode Private Key${NC}. Leave it blank to generate a new ${RED}Masternode Private Key${NC} for you:"
+  read -e COINKEY
+  if [[ -z "$COINKEY" ]]; then
+  sudo -u $COINUSER /usr/local/bin/$COINDAEMON -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER
+  sleep 5
+  if [ -z "$(pidof $COINDAEMON)" ]; then
+   echo -e "${RED}Arcticcoind server couldn't start. Check /var/log/syslog for errors.{$NC}"
+   exit 1
+  fi
+  COINKEY=$(sudo -u $COINUSER $BINARY_FILE -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER masternode genkey)
+  sudo -u $COINUSER $BINARY_FILE -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER stop
+fi
+}
+
+function update_config() {
+  sed -i 's/daemon=1/daemon=0/' $COINFOLDER/$CONFIG_FILE
+  cat << EOF >> $COINFOLDER/$CONFIG_FILE
+logtimestamps=1
+maxconnections=256
+masternode=1
+masternodeaddr=$NODEIP:$COINPORT
+masternodeprivkey=$COINKEY
+EOF
+  chown -R $COINUSER: $COINFOLDER >/dev/null
+}
+
+function important_information() {
+ echo
+ echo -e "================================================================================================================================"
+ echo -e "$COINTITLE Masternode is up and running as user ${GREEN}$COINUSER${NC} and it is listening on port ${GREEN}$COINPORT${NC}."
+ echo -e "${GREEN}$COINUSER${NC} password is ${RED}$USERPASS${NC}"
+ echo -e "Configuration file is: ${RED}$COINFOLDER/$CONFIG_FILE${NC}"
+ echo -e "Start: ${RED}systemctl start $COINUSER.service${NC}"
+ echo -e "Stop: ${RED}systemctl stop $COINUSER.service${NC}"
+ echo -e "VPS_IP:PORT ${RED}$NODEIP:$COINPORT${NC}"
+ echo -e "MASTERNODE PRIVATEKEY is: ${RED}$COINKEY${NC}"
+ echo -e "================================================================================================================================"
+}
+
+function setup_node() {
+  ask_user
+  check_port
+  create_config
+  create_key
+  update_config
+  enable_firewall
+  systemd_arcticcoin
+  important_information
+}
+
+
+##### Main #####
+clear
+
+checks
+if [[ ("$NEW_CROP" == "y" || "$NEW_CROP" == "Y") ]]; then
+  setup_node
+  exit 0
+elif [[ "$NEW_CROP" == "new" ]]; then
+  prepare_system
+  ask_permission
+  if [[ "$ALREADYCOMPILED" == "YES" ]]; then
+    deploy_binaries
+  else
+    compile_arcticcoin
+  fi
+  setup_node
+else
+  echo -e "${GREEN}$COINDAEMON already running.${NC}"
+  exit 0
+fi
