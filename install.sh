@@ -65,7 +65,7 @@ apt-get update >/dev/null 2>&1
 apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" make software-properties-common \
 build-essential libtool autoconf libssl-dev libboost-dev libboost-chrono-dev libboost-filesystem-dev libboost-program-options-dev \
 libboost-system-dev libboost-test-dev libboost-thread-dev sudo automake git wget pwgen curl libdb4.8-dev bsdmainutils \
-libdb4.8++-dev libminiupnpc-dev libgmp3-dev ufw
+libdb4.8++-dev libminiupnpc-dev libgmp3-dev ufw automake
 clear
 if [ "$?" -gt "0" ];
   then
@@ -108,7 +108,7 @@ function deploy_binaries() {
 }
 
 function ask_permission() {
- echo -e "${RED}I trust zoldur and want to use binaries compiled on his server.${NC}."
+ echo -e "${RED}I trust you and want to use binaries compiled on your server.${NC}."
  echo -e "Please type ${RED}YES${NC} if you want to use precompiled binaries, or type anything else to compile them on your server"
  read -e ALREADYCOMPILED
 }
