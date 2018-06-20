@@ -1,16 +1,20 @@
 #!/bin/bash
 
-TMP_FOLDER=$(mktemp -d)
+
+DEFAULTCOINUSER="arcticcoin"
+DEFAULTCOINPORT=7209
+DEFAULTCOINFOLDER="$COINHOME/.arcticcore"
+
 COINTITLE=Arcticcoin
 COINDAEMON=arcticcoind
 COINCLI=arcticcoin-cli
 CONFIG_FILE="arcticcoin.conf"
-BIN_TARGET="/usr/local/bin"
-BINARY_FILE="$BIN_TARGET/$COINDAEMON"
 COIN_REPO="https://github.com/ArcticCore/arcticcoin.git"
 COIN_TGZ='https://github.com/ArcticCore/arcticcoin/releases/download/v0.12.1.2/arcticcore-0.12.2-linux64.tar.gz'
-DEFAULTCOINPORT=7209
-DEFAULTCOINFOLDER="$COINHOME/.arcticcore"
+
+TMP_FOLDER=$(mktemp -d)
+BIN_TARGET="/usr/local/bin"
+BINARY_FILE="$BIN_TARGET/$COINDAEMON"
 NODEIP=$(curl -s4 api.ipify.org)
 
 RED='\033[0;31m'
@@ -61,7 +65,7 @@ apt-get update >/dev/null 2>&1
 apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" make software-properties-common \
 build-essential libtool autoconf libssl-dev libboost-dev libboost-chrono-dev libboost-filesystem-dev libboost-program-options-dev \
 libboost-system-dev libboost-test-dev libboost-thread-dev sudo automake git wget pwgen curl libdb4.8-dev bsdmainutils \
-libdb4.8++-dev libminiupnpc-dev libgmp3-dev ufw pwgen
+libdb4.8++-dev libminiupnpc-dev libgmp3-dev ufw
 clear
 if [ "$?" -gt "0" ];
   then
@@ -175,12 +179,11 @@ EOF
 }
 
 function ask_port() {
-read -p "CROPCOIN Port: " -i $DEFAULTCOINPORT -e COINPORT
+read -p "$COINTITLE Port: " -i $DEFAULTCOINPORT -e COINPORT
 : ${COINPORT:=$DEFAULTCOINPORT}
 }
 
 function ask_user() {
-  DEFAULTCOINUSER="arcticcoin"
   read -p "$COINTITLE user: " -i $DEFAULTCOINUSER -e COINUSER
   : ${COINUSER:=$DEFAULTCOINUSER}
 
