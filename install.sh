@@ -251,9 +251,9 @@ function update_config() {
   cat << EOF >> $COINFOLDER/$CONFIG_FILE
 logtimestamps=1
 maxconnections=256
-masternode=1
-masternodeaddr=$NODEIP:$COINPORT
-masternodeprivkey=$COINKEY
+goldminenode=1
+externalip=$NODEIP
+goldminenodeprivkey=$COINKEY
 EOF
   chown -R $COINUSER: $COINFOLDER >/dev/null
 }
