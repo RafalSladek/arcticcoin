@@ -122,9 +122,8 @@ function compile_arcticcoin() {
     ./autogen.sh
     ./configure
     make -j$(nproc)
+    make install
   compile_error arcticcoin
-  cp -a $TMP_FOLDER/src/$COINDAEMON $BIN_TARGET
-  cp -a $TMP_FOLDER/src/$COINCLI $BIN_TARGET
   clear
 }
 
