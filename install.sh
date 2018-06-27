@@ -276,6 +276,16 @@ function important_information() {
  echo -e "================================================================================================================================"
 }
 
+function motd() {
+  cat << EOF >> /etc/update-motd.d/99-${DEFAULTCOINUSER}
+#!/bin/bash
+printf "\n${COINCLI} goldminenode status\n"
+sudo -u $COINUSER $BIN_TARGET/$COINCLI -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER goldminenode status
+printf "\n"
+EOF
+chmod +x /etc/update-motd.d/99-${DEFAULTCOINUSER}
+}
+
 function setup_node() {
   ask_user
   check_port
@@ -285,6 +295,7 @@ function setup_node() {
   enable_firewall
   systemd_install
   important_information
+  motd
 }
 
 
