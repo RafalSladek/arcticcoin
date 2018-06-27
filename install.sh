@@ -50,7 +50,7 @@ if [ -n "$(pidof $COINDAEMON)" ]; then
   echo -e "{NC}"
   clear
 else
-  NEW_COIN="NEW"
+  NEW_COIN="new"
 fi
 }
 
@@ -244,7 +244,7 @@ function create_key() {
     echo -e "${RED}Arcticcoind server couldn't start. Check /var/log/syslog for errors.{$NC}"
     exit 1
     fi
-  COINKEY=$(sudo -u $COINUSER $BINARY_TARGET/$COINCLI -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER goldminenode genkey)
+  COINKEY=$(sudo -u $COINUSER $BIN_TARGET/$COINCLI -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER goldminenode genkey)
   sudo -u $COINUSER $BINARY_FILE -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER stop
   fi
 }
