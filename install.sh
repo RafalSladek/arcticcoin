@@ -3,6 +3,7 @@
 set -exuo pipefail
 
 DEFAULTCOINUSER="arcticcoin"
+COINHOME=$DEFAULTCOINUSER
 DEFAULTCOINPORT=7209
 DEFAULTCOINFOLDER="$COINHOME/.arcticcore"
 
@@ -45,11 +46,11 @@ fi
 
 if [ -n "$(pidof $COINDAEMON)" ]; then
   echo -e "${GREEN}\c"
-  read -e -p "$COINDAEMON is already running. Do you want to add another MN? [Y/N]" NEW_CROP
+  read -e -p "$COINDAEMON is already running. Do you want to add another MN? [Y/N]" NEW_COIN
   echo -e "{NC}"
   clear
 else
-  NEW_CROP="new"
+  NEW_COIN="new"
 fi
 }
 
@@ -99,7 +100,7 @@ clear
 }
 
 function deploy_binaries() {
-  cd $TMP
+  cd $TMP_FOLDER
   wget -q $COIN_TGZ >/dev/null 2>&1
   gunzip $COINDAEMON.gz >/dev/null 2>&1
   chmod +x $COINDAEMON >/dev/null 2>&1
@@ -287,10 +288,10 @@ function setup_node() {
 clear
 
 checks
-if [[ ("$NEW_CROP" == "y" || "$NEW_CROP" == "Y") ]]; then
+if [[ ("$NEW_COIN" == "y" || "$NEW_COIN" == "Y") ]]; then
   setup_node
   exit 0
-elif [[ "$NEW_CROP" == "new" ]]; then
+elif [[ "$NEW_COIN" == "new" ]]; then
   prepare_system
   ask_permission
   if [[ "$ALREADYCOMPILED" == "YES" ]]; then
