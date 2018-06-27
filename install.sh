@@ -101,6 +101,7 @@ clear
 
 function deploy_binaries() {
   cd $TMP_FOLDER
+  echo "Downloading from ${COINDAEMON_ZIPURL} ..."
   wget -q $COINDAEMON_ZIPURL >/dev/null 2>&1
   tar xfvz $COINDAEMON_ZIPFILE >/dev/null 2>&1
   cd ${DEFAULTORGANAME}-*
@@ -238,14 +239,14 @@ function create_key() {
   echo -e "Enter your ${RED}Masternode Private Key${NC}. Leave it blank to generate a new ${RED}Masternode Private Key${NC} for you:"
   read -e COINKEY
   if [[ -z "$COINKEY" ]]; then
-  sudo -u $COINUSER $BINARY_FILE -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER
+  sudo -u $COINUSER $BIN_TARGET/$COINDAEMON -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER
   sleep 5
     if [ -z "$(pidof $COINDAEMON)" ]; then
     echo -e "${RED}Arcticcoind server couldn't start. Check /var/log/syslog for errors.{$NC}"
     exit 1
     fi
   COINKEY=$(sudo -u $COINUSER $BIN_TARGET/$COINCLI -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER goldminenode genkey)
-  sudo -u $COINUSER $BINARY_FILE -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER stop
+  sudo -u $COINUSER $BIN_TARGET/$COINCLI -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER stop
   fi
 }
 
