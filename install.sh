@@ -1,31 +1,28 @@
 #!/bin/bash
 
-set -exuo pipefail
+#set -exuo pipefail
 
 DEFAULTCOINUSER="arcticcoin"
 COINHOME=$DEFAULTCOINUSER
 DEFAULTCOINPORT=7209
-DEFAULTORGANAME=arcticcore
-DEFAULTCOINFOLDER="${COINHOME}/.${DEFAULTORGANAME}"
+DEFAULTORGANAME="arcticcore"
 
-COINTITLE=Arcticcoin
-COINDAEMON=arcticcoind
-COINCLI=arcticcoin-cli
+COINTITLE="Arcticcoin"
+COINDAEMON="arcticcoind"
+COINCLI="arcticcoin-cli"
 CONFIG_FILE="arcticcoin.conf"
 COIN_REPO="https://github.com/ArcticCore/arcticcoin.git"
-COINDAEMON_VERSION=0.12.2
+COINDAEMON_VERSION="0.12.2"
 COINDAEMON_ZIPFILE="${DEFAULTORGANAME}-${COINDAEMON_VERSION}-linux64.tar.gz"
 COINDAEMON_ZIPURL="https://github.com/ArcticCore/arcticcoin/releases/download/v0.12.1.2/${COINDAEMON_ZIPFILE}"
 
 TMP_FOLDER=$(mktemp -d)
 BIN_TARGET="/usr/local/bin"
 BINARY_FILE="${BIN_TARGET}/${COINDAEMON}"
-NODEIP=$(curl -s4 api.ipify.org)
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
-
 
 function compile_error() {
 if [ "$?" -gt "0" ];
@@ -53,7 +50,7 @@ if [ -n "$(pidof $COINDAEMON)" ]; then
   echo -e "{NC}"
   clear
 else
-  NEW_COIN="new"
+  NEW_COIN="NEW"
 fi
 }
 
@@ -106,7 +103,8 @@ function deploy_binaries() {
   cd $TMP_FOLDER
   wget -q $COINDAEMON_ZIPURL >/dev/null 2>&1
   tar xfvz $COINDAEMON_ZIPFILE >/dev/null 2>&1
-  cd ${DEFAULTORGANAME}-*/bin
+  cd ${DEFAULTORGANAME}-*
+  cd bin
   chmod +x $COINDAEMON >/dev/null 2>&1
   cp $COINDAEMON $BIN_TARGET >/dev/null 2>&1
   chmod +x $COINCLI >/dev/null 2>&1
@@ -194,14 +192,14 @@ function ask_user() {
 
   if [ -z "$(getent passwd $COINUSER)" ]; then
     useradd -m $COINUSER
-    USERPASS=$(tr -cd '[:alnum:]' < /dev/urandom | fold -w12 | head -n1)
-    echo "$COINUSER:$USERPASS" | chpasswd
-
     COINHOME=$(sudo -H -u $COINUSER bash -c 'echo $HOME')
+    DEFAULTCOINFOLDER="${COINHOME}/.${DEFAULTORGANAME}"
     read -p "Configuration folder: " -i $DEFAULTCOINFOLDER -e COINFOLDER
     : ${COINFOLDER:=$DEFAULTCOINFOLDER}
     mkdir -p $COINFOLDER
     chown -R $COINUSER: $COINFOLDER >/dev/null
+    USERPASS=$(tr -cd '[:alnum:]' < /dev/urandom | fold -w12 | head -n1)
+    echo "$COINUSER:$USERPASS" | chpasswd
   else
     clear
     echo -e "${RED}User exits. Please enter another username: ${NC}"
@@ -240,18 +238,19 @@ function create_key() {
   echo -e "Enter your ${RED}Masternode Private Key${NC}. Leave it blank to generate a new ${RED}Masternode Private Key${NC} for you:"
   read -e COINKEY
   if [[ -z "$COINKEY" ]]; then
-  sudo -u $COINUSER /usr/local/bin/$COINDAEMON -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER
+  sudo -u $COINUSER $BINARY_FILE -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER
   sleep 5
-  if [ -z "$(pidof $COINDAEMON)" ]; then
-   echo -e "${RED}Arcticcoind server couldn't start. Check /var/log/syslog for errors.{$NC}"
-   exit 1
-  fi
-  COINKEY=$(sudo -u $COINUSER $BINARY_FILE -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER goldmine genkey)
+    if [ -z "$(pidof $COINDAEMON)" ]; then
+    echo -e "${RED}Arcticcoind server couldn't start. Check /var/log/syslog for errors.{$NC}"
+    exit 1
+    fi
+  COINKEY=$(sudo -u $COINUSER $BINARY_TARGET/$COINCLI -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER goldminenode genkey)
   sudo -u $COINUSER $BINARY_FILE -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER stop
-fi
+  fi
 }
 
 function update_config() {
+  NODEIP=$(curl -s4 api.ipify.org)
   sed -i 's/daemon=1/daemon=0/' $COINFOLDER/$CONFIG_FILE
   cat << EOF >> $COINFOLDER/$CONFIG_FILE
 logtimestamps=1
