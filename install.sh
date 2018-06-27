@@ -5,18 +5,21 @@ set -exuo pipefail
 DEFAULTCOINUSER="arcticcoin"
 COINHOME=$DEFAULTCOINUSER
 DEFAULTCOINPORT=7209
-DEFAULTCOINFOLDER="$COINHOME/.arcticcore"
+DEFAULTORGANAME=arcticcore
+DEFAULTCOINFOLDER="${COINHOME}/.${DEFAULTORGANAME}"
 
 COINTITLE=Arcticcoin
 COINDAEMON=arcticcoind
 COINCLI=arcticcoin-cli
 CONFIG_FILE="arcticcoin.conf"
 COIN_REPO="https://github.com/ArcticCore/arcticcoin.git"
-COIN_TGZ='https://github.com/ArcticCore/arcticcoin/releases/download/v0.12.1.2/arcticcore-0.12.2-linux64.tar.gz'
+COINDAEMON_VERSION=0.12.2
+COINDAEMON_ZIPFILE="${DEFAULTORGANAME}-${COINDAEMON_VERSION}-linux64.tar.gz"
+COINDAEMON_ZIPURL="https://github.com/ArcticCore/arcticcoin/releases/download/v0.12.1.2/${COINDAEMON_ZIPFILE}"
 
 TMP_FOLDER=$(mktemp -d)
 BIN_TARGET="/usr/local/bin"
-BINARY_FILE="$BIN_TARGET/$COINDAEMON"
+BINARY_FILE="${BIN_TARGET}/${COINDAEMON}"
 NODEIP=$(curl -s4 api.ipify.org)
 
 RED='\033[0;31m'
@@ -101,8 +104,9 @@ clear
 
 function deploy_binaries() {
   cd $TMP_FOLDER
-  wget -q $COIN_TGZ >/dev/null 2>&1
-  gunzip $COINDAEMON.gz >/dev/null 2>&1
+  wget -q $COINDAEMON_ZIPURL >/dev/null 2>&1
+  tar xfvz $COINDAEMON_ZIPFILE >/dev/null 2>&1
+  cd ${DEFAULTORGANAME}-*/bin
   chmod +x $COINDAEMON >/dev/null 2>&1
   cp $COINDAEMON $BIN_TARGET >/dev/null 2>&1
   chmod +x $COINCLI >/dev/null 2>&1
