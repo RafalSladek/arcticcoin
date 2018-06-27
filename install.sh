@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -exuo pipefail
 
 DEFAULTCOINUSER="arcticcoin"
 DEFAULTCOINPORT=7209
@@ -123,7 +124,7 @@ function compile_arcticcoin() {
     ./configure
     make -j$(nproc)
     make install
-  compile_error arcticcoin
+  compile_error $DEFAULTCOINUSER
   clear
 }
 
@@ -137,7 +138,7 @@ function enable_firewall() {
   echo "y" | ufw enable >/dev/null 2>&1
 }
 
-function systemd_arcticcoin() {
+function systemd_install() {
   cat << EOF > /etc/systemd/system/$COINUSER.service
 [Unit]
 Description=$COINTITLE service
@@ -240,7 +241,7 @@ function create_key() {
    echo -e "${RED}Arcticcoind server couldn't start. Check /var/log/syslog for errors.{$NC}"
    exit 1
   fi
-  COINKEY=$(sudo -u $COINUSER $BINARY_FILE -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER masternode genkey)
+  COINKEY=$(sudo -u $COINUSER $BINARY_FILE -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER goldmine genkey)
   sudo -u $COINUSER $BINARY_FILE -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER stop
 fi
 }
@@ -277,7 +278,7 @@ function setup_node() {
   create_key
   update_config
   enable_firewall
-  systemd_arcticcoin
+  systemd_install
   important_information
 }
 
