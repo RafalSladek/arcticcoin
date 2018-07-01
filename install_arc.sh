@@ -66,9 +66,9 @@ echo -e "Installing required packages, it may take some time to finish.${NC}"
 apt-get update >/dev/null 2>&1
 apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" make software-properties-common \
 build-essential libtool autoconf libssl-dev libboost-dev libboost-chrono-dev libboost-filesystem-dev libboost-program-options-dev \
-libboost-system-dev libboost-test-dev libboost-thread-dev sudo automake git wget pwgen curl libdb4.8-dev bsdmainutils \
+libboost-system-dev libboost-test-dev libboost-thread-dev sudo automake git wget pwgen curl monit libdb4.8-dev bsdmainutils \
 libdb4.8++-dev libminiupnpc-dev libgmp3-dev ufw automake libevent-dev libzmq3-dev
-clear
+
 if [ "$?" -gt "0" ];
   then
     echo -e "${RED}Not all required packages were installed properly. Try to install them manually by running the following commands:${NC}\n"
@@ -77,12 +77,11 @@ if [ "$?" -gt "0" ];
     echo "apt-add-repository -y ppa:bitcoin/bitcoin"
     echo "apt-get update"
     echo "apt install -y make build-essential libtool software-properties-common autoconf libssl-dev libboost-dev libboost-chrono-dev libboost-filesystem-dev \
-libboost-program-options-dev libboost-system-dev libboost-test-dev libboost-thread-dev sudo automake git pwgen curl libdb4.8-dev \
+libboost-program-options-dev libboost-system-dev libboost-test-dev libboost-thread-dev sudo automake git pwgen curl monit libdb4.8-dev \
 bsdmainutils libdb4.8++-dev libminiupnpc-dev libgmp3-dev ufw automake libevent-dev libzmq3-dev"
  exit 1
 fi
 
-clear
 echo -e "Checking if swap space is needed."
 PHYMEM=$(free -g|awk '/^Mem:/{print $2}')
 SWAP=$(swapon -s)
@@ -96,7 +95,6 @@ if [[ "$PHYMEM" -lt "2" && -z "$SWAP" ]];
 else
   echo -e "${GREEN}The server running with at least 2G of RAM, or SWAP exists.${NC}"
 fi
-clear
 }
 
 function deploy_binaries() {
@@ -129,7 +127,6 @@ function compile_arcticcoin() {
     make -j$(nproc)
     make install
   compile_error $DEFAULTCOINUSER
-  clear
 }
 
 function enable_firewall() {
@@ -276,8 +273,46 @@ function important_information() {
  echo -e "================================================================================================================================"
 }
 
+function fail2ban() {
+sudo apt install -y fail2ban
+sudo cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+sudo systemctl restart fail2ban.service
+}
+
+function monit() {
+ echo -e "Please type email for notifications"
+ read -e EMAIL
+  cat << EOF >> /etc/monit/monitrc
+set alert ${EMAIL}
+set httpd port 2812
+  use address localhost
+  allow localhost
+EOF
+
+  cat << EOF > /etc/monit/monitrc.d/fail2ban
+check process fail2ban with pidfile /var/run/fail2ban/fail2ban.pid
+    group services
+    start program = "/etc/init.d/fail2ban force-start"
+    stop  program = "/etc/init.d/fail2ban stop || :"
+    if failed unixsocket /var/run/fail2ban/fail2ban.sock then restart
+    if 5 restarts within 5 cycles then timeout
+
+check file fail2ban_log with path /var/log/fail2ban.log
+    if match "ERROR|WARNING" then alert
+EOF
+
+ln -s /etc/monit/monitrc.d/fail2ban /etc/monit/conf-enabled/fail2ban
+ln -s /etc/monit/conf-available/cron /etc/monit/conf-enabled/cron
+ln -s /etc/monit/conf-available/openssh-server /etc/monit/conf-enabled/openssh-server
+
+
+monit reload
+monit -t
+monit start all
+}
+
 function motd() {
-  cat << EOF >> /etc/update-motd.d/99-${DEFAULTCOINUSER}
+  cat << EOF > /etc/update-motd.d/99-${DEFAULTCOINUSER}
 #!/bin/bash
 printf "\n${COINCLI} goldminenode status\n"
 sudo -u $COINUSER $BIN_TARGET/$COINCLI -conf=$COINFOLDER/$CONFIG_FILE -datadir=$COINFOLDER goldminenode status
@@ -285,6 +320,7 @@ printf "\n"
 EOF
 chmod +x /etc/update-motd.d/99-${DEFAULTCOINUSER}
 }
+
 
 function setup_node() {
   ask_user
@@ -295,6 +331,8 @@ function setup_node() {
   enable_firewall
   systemd_install
   important_information
+  fail2ban
+  monit
   motd
 }
 
